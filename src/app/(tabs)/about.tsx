@@ -46,28 +46,40 @@ export default function AboutScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
           className="h-11 w-11 items-center justify-center rounded-2xl border active:opacity-70"
-          style={{ backgroundColor: CARD, borderColor: BORDER }}
+          style={{
+            backgroundColor: CARD,
+            borderColor: BORDER,
+          }}
         >
-          <ArrowLeft size={21} color="#FFFFFF" />
+          <ArrowLeft size={20} color="#FFFFFF" />
         </Pressable>
 
-        <Text className="ml-4 text-lg font-extrabold text-white">
-          About TinyTales
-        </Text>
+        <View className="ml-4">
+          <Text className="text-lg font-bold text-white">About TinyTales</Text>
+          <Text className="mt-0.5 text-xs" style={{ color: MUTED }}>
+            Get to know the app
+          </Text>
+        </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerClassName="px-5 pb-10"
       >
-        {/* App introduction */}
+        {/* App Introduction */}
         <View
-          className="mt-4 items-center rounded-[28px] border px-6 py-7"
-          style={{ backgroundColor: CARD, borderColor: BORDER }}
+          className="mt-5 items-center rounded-[28px] border px-6 py-8"
+          style={{
+            backgroundColor: CARD,
+            borderColor: BORDER,
+          }}
         >
           <View
-            className="h-28 w-28 overflow-hidden rounded-[28px] border"
-            style={{ borderColor: BORDER }}
+            className="h-24 w-24 overflow-hidden rounded-[26px] border"
+            style={{
+              backgroundColor: "#30234F",
+              borderColor: "#493666",
+            }}
           >
             <Image
               source={require("../../../assets/images/icon.png")}
@@ -76,12 +88,19 @@ export default function AboutScreen() {
             />
           </View>
 
-          <Text className="mt-5 text-3xl font-black text-white">
+          <Text className="mt-5 text-[30px] font-black tracking-tight text-white">
             Tiny<Text style={{ color: PURPLE }}>Tales</Text>
           </Text>
 
           <Text
-            className="mt-3 text-center text-sm leading-6"
+            className="mt-2 text-xs font-semibold tracking-wide"
+            style={{ color: PURPLE }}
+          >
+            A PLACE FOR YOUR THOUGHTS
+          </Text>
+
+          <Text
+            className="mt-4 text-center text-sm leading-6"
             style={{ color: MUTED }}
           >
             A little place for big imaginations. Discover magical stories,
@@ -90,14 +109,17 @@ export default function AboutScreen() {
         </View>
 
         {/* About */}
-        <View className="mt-8">
-          <Text className="text-xl font-black text-white">About the app</Text>
+        <View className="mt-9">
+          <Text className="text-lg font-bold text-white">About the app</Text>
 
           <View
-            className="mt-4 rounded-[22px] border p-5"
-            style={{ backgroundColor: CARD, borderColor: BORDER }}
+            className="mt-4 rounded-[24px] border p-5"
+            style={{
+              backgroundColor: CARD,
+              borderColor: BORDER,
+            }}
           >
-            <Text className="text-sm leading-7 text-white/85">
+            <Text className="text-sm leading-7" style={{ color: "#D8D2E7" }}>
               TinyTales brings stories and imagination together in one place.
               Explore animal stories, fairy tales, adventures, fantasy, and
               science fiction.
@@ -109,8 +131,8 @@ export default function AboutScreen() {
         </View>
 
         {/* Features */}
-        <View className="mt-8">
-          <Text className="text-xl font-black text-white">
+        <View className="mt-9">
+          <Text className="text-lg font-bold text-white">
             What you can explore
           </Text>
 
@@ -122,17 +144,20 @@ export default function AboutScreen() {
                 <View
                   key={feature.title}
                   className="flex-row items-center rounded-[22px] border p-4"
-                  style={{ backgroundColor: CARD, borderColor: BORDER }}
+                  style={{
+                    backgroundColor: CARD,
+                    borderColor: BORDER,
+                  }}
                 >
                   <View
                     className="h-12 w-12 items-center justify-center rounded-2xl"
                     style={{ backgroundColor: "#30234F" }}
                   >
-                    <Icon size={22} color={PURPLE} />
+                    <Icon size={21} color={PURPLE} />
                   </View>
 
                   <View className="ml-4 flex-1">
-                    <Text className="text-sm font-extrabold text-white">
+                    <Text className="text-sm font-bold text-white">
                       {feature.title}
                     </Text>
 
@@ -151,23 +176,26 @@ export default function AboutScreen() {
           </View>
         </View>
 
-        {/* Back button */}
+        {/* Back Button */}
         <Pressable
           onPress={() => router.back()}
           accessibilityRole="button"
-          className="mt-8 min-h-12 flex-row items-center justify-center rounded-2xl active:opacity-75"
+          className="mt-9 min-h-[52px] flex-row items-center justify-center rounded-2xl active:opacity-75"
           style={{ backgroundColor: PURPLE }}
         >
-          <MoonStar size={18} color={BG} />
-          <Text className="ml-2 font-extrabold" style={{ color: BG }}>
+          <MoonStar size={19} color={BG} />
+          <Text className="ml-2 text-sm font-bold" style={{ color: BG }}>
             Back to exploring
           </Text>
         </Pressable>
 
         {/* Footer */}
-        <Text className="mt-6 text-center text-xs" style={{ color: MUTED }}>
-          TinyTales · Stories for curious minds
-        </Text>
+        <View className="mt-7 items-center">
+          <Text className="text-xs font-semibold text-white">TinyTales</Text>
+          <Text className="mt-1 text-[11px]" style={{ color: MUTED }}>
+            Stories for curious minds.
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

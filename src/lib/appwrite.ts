@@ -43,6 +43,7 @@ export async function createStory(data: {
   category: string;
   emoji: string;
   color: string;
+  imageUrl?: string;
   writerName: string;
   story: string;
 }) {
@@ -51,6 +52,45 @@ export async function createStory(data: {
     collectionId: collectionId,
     documentId: ID.unique(),
     data,
+  });
+}
+
+// update and delete
+
+type StoryUpdate = Partial<
+  Pick<
+    Story,
+    | "title"
+    | "category"
+    | "emoji"
+    | "color"
+    | "imageUrl"
+    | "writerName"
+    | "story"
+  >
+>;
+
+// Update an existing story
+export async function updateStory(
+  id: string,
+  data: StoryUpdate,
+): Promise<Story> {
+  const result = await databases.updateDocument({
+    databaseId,
+    collectionId,
+    documentId: id,
+    data,
+  });
+
+  return result as unknown as Story;
+}
+
+// Delete a story
+export async function deleteStory(id: string): Promise<void> {
+  await databases.deleteDocument({
+    databaseId,
+    collectionId,
+    documentId: id,
   });
 }
 

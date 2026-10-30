@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { Clock, RefreshCw } from "lucide-react-native";
+import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Image,
@@ -13,8 +14,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { getStories, getStoryCommentCount, Story } from "../../lib/appwrite";
 
 const BG = "#100D20";
+const CARD = "#1D1833";
 const PURPLE = "#A78BFA";
 const MUTED = "#AAA3C2";
+const BORDER = "#332A4B";
 
 const categories = [
   { name: "All", emoji: "✨" },
@@ -23,6 +26,25 @@ const categories = [
   { name: "Adventure", emoji: "🚀" },
   { name: "Fantasy", emoji: "🦄" },
 ];
+
+type HomeView = "all" | "top";
+
+function formatPublishedAt(date: string) {
+  const publishedDate = new Date(date);
+
+  if (Number.isNaN(publishedDate.getTime())) {
+    return "Unknown date";
+  }
+
+  return publishedDate.toLocaleString("en-BD", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
 function StoryCover({
   imageUrl,
@@ -72,63 +94,65 @@ export default function HomeScreen() {
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>(
     {},
   );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  const [activeView, setActiveView] = useState<HomeView>("all");
   const [selectedCategory, setSelectedCategory] = useState("All");
 
-  useEffect(() => {
-    let active = true;
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
 
-    async function loadStories() {
-      try {
-        setLoading(true);
-        setError("");
+  // Load stories and comment counts
+  const loadStories = useCallback(async () => {
+    try {
+      setError("");
 
-        const data = await getStories();
+      const data = await getStories();
+      setStories(data);
 
-        if (!active) return;
+      const entries = await Promise.all(
+        data.map(async (story) => {
+          try {
+            const count = await getStoryCommentCount(story.$id);
+            return [story.$id, count] as const;
+          } catch (err) {
+            console.error(`Comment count error for ${story.$id}:`, err);
 
-        setStories(data);
+            return [story.$id, 0] as const;
+          }
+        }),
+      );
 
-        const entries = await Promise.all(
-          data.map(async (story) => {
-            try {
-              const count = await getStoryCommentCount(story.$id);
-              return [story.$id, count] as const;
-            } catch (err) {
-              console.error(`Comment count error for ${story.$id}:`, err);
-              return [story.$id, 0] as const;
-            }
-          }),
-        );
+      setCommentCounts(Object.fromEntries(entries));
+    } catch (err) {
+      console.error("Appwrite error:", err);
 
-        if (active) {
-          setCommentCounts(Object.fromEntries(entries));
-        }
-      } catch (err) {
-        console.error("Appwrite error:", err);
-
-        if (active) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "We couldn't load your magical stories.",
-          );
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
+      setError(
+        err instanceof Error ? err.message : "We couldn't load your stories.",
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-
-    void loadStories();
-
-    return () => {
-      active = false;
-    };
   }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadStories();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [loadStories]);
+
+  // Refresh button
+  const handleRefresh = () => {
+    if (loading || refreshing) return;
+
+    setRefreshing(true);
+    void loadStories();
+  };
+
+  // Open story details
   const openStory = (id: string) => {
     router.push({
       pathname: "/details",
@@ -136,20 +160,38 @@ export default function HomeScreen() {
     });
   };
 
+  // Featured story
   const featuredStory = stories[0];
 
+  // Category filtering
   const filteredStories =
     selectedCategory === "All"
       ? stories
       : stories.filter((story) => story.category === selectedCategory);
 
-  const visibleStories = filteredStories.filter(
-    (story) => selectedCategory !== "All" || story.$id !== featuredStory?.$id,
-  );
+  // Top 10 most-commented stories
+  const topStories = [...stories]
+    .sort((a, b) => {
+      const countDifference =
+        (commentCounts[b.$id] ?? 0) - (commentCounts[a.$id] ?? 0);
+
+      if (countDifference !== 0) {
+        return countDifference;
+      }
+
+      // If comments are equal, newest story comes first
+      return (
+        new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime()
+      );
+    })
+    .slice(0, 10);
+
+  // Show all stories or top 10
+  const visibleStories = activeView === "top" ? topStories : filteredStories;
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: BG }}>
-      {/* Top navigation */}
+      {/* Header */}
       <View className="flex-row items-center justify-between px-5 pb-3 pt-3">
         <View className="flex-row items-center">
           <View className="mr-3 h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-[#30234F]">
@@ -161,228 +203,259 @@ export default function HomeScreen() {
           </View>
 
           <View>
-            <Text className="text-xl font-black text-white">TinyTales</Text>
+            <Text className="text-[17px] font-black tracking-tight text-white">
+              Tiny<Text style={{ color: PURPLE }}>Tales</Text>
+            </Text>
+
             <Text className="text-xs" style={{ color: MUTED }}>
-              YOUR MAGICAL LIBRARY
+              YOUR MAGICAL World
             </Text>
           </View>
         </View>
 
-        <View className="rounded-full border border-[#453660] bg-[#211A38] px-3 py-2">
-          <Text className="text-sm font-bold text-[#FCD34D]">
-            Let&apos;s read!
-          </Text>
-        </View>
+        {/* Refresh */}
+        <Pressable
+          onPress={handleRefresh}
+          disabled={loading || refreshing}
+          accessibilityRole="button"
+          accessibilityLabel="Refresh stories"
+          className="h-11 w-11 items-center justify-center rounded-2xl border border-[#453660] bg-[#211A38] active:opacity-70"
+          style={{ opacity: loading || refreshing ? 0.5 : 1 }}
+        >
+          <RefreshCw size={20} color={PURPLE} strokeWidth={2.5} />
+        </Pressable>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 35 }}
       >
-        {/* Welcome hero */}
-        <View className="mx-5 mt-4 overflow-hidden rounded-[30px] bg-[#281B48] p-5">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1 pr-2">
-              <Text className="text-sm font-bold text-[#C4B5FD]">
-                ✨ A LITTLE MAGIC EVERY DAY
-              </Text>
-
-              <Text className="mt-3 text-[30px] font-black leading-[36px] text-white">
-                Dream big,{"\n"}little reader!
-              </Text>
-
-              <Text className="mt-3 text-sm leading-6 text-[#D0C5E9]">
-                Wonderful worlds and new friends are waiting for you.
-              </Text>
-            </View>
-
-            <View className="items-center">
-              <Text className="text-[64px]">🪄</Text>
-              <Text className="text-2xl">⭐ 🌙</Text>
-            </View>
-          </View>
-
+        {/* View Selector */}
+        <View className="mx-5 mt-5 flex-row rounded-2xl border border-[#332A4B] bg-[#1D1833] p-1.5">
           <Pressable
-            onPress={() => router.push("/search")}
-            className="mt-5 self-start rounded-2xl bg-[#A78BFA] px-5 py-3 active:opacity-70"
+            onPress={() => setActiveView("all")}
+            className="flex-1 items-center rounded-xl py-3"
+            style={{
+              backgroundColor: activeView === "all" ? "#382957" : "transparent",
+            }}
           >
-            <Text className="font-extrabold text-[#17102B]">
-              Find a story →
+            <Text
+              className="font-extrabold"
+              style={{
+                color: activeView === "all" ? "#D8C8FF" : MUTED,
+              }}
+            >
+              📚 All Stories
             </Text>
           </Pressable>
 
-          <View className="absolute right-4 top-3">
-            <Text className="text-xl text-[#FDE68A]">✦</Text>
-          </View>
-        </View>
-
-        {/* Categories */}
-        <View className="mt-7">
-          <View className="mb-4 flex-row items-center justify-between px-5">
-            <Text className="text-xl font-extrabold text-white">
-              Explore worlds 🌈
-            </Text>
-            <Text className="text-xs font-bold text-[#C2C9F0]">PICK ONE</Text>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingHorizontal: 20,
-              paddingVertical: 5,
-              gap: 12,
+          <Pressable
+            onPress={() => setActiveView("top")}
+            className="flex-1 items-center rounded-xl py-3"
+            style={{
+              backgroundColor: activeView === "top" ? "#382957" : "transparent",
             }}
           >
-            {categories.map((category) => {
-              const active = selectedCategory === category.name;
-
-              return (
-                <Pressable
-                  key={category.name}
-                  onPress={() => setSelectedCategory(category.name)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${category.name} category`}
-                  accessibilityState={{ selected: active }}
-                  className="items-center active:opacity-80"
-                  style={{ width: 82 }}
-                >
-                  <View
-                    className="h-[68px] w-[68px] items-center justify-center rounded-[22px] border"
-                    style={{
-                      backgroundColor: active ? "#302653" : "#1D1833",
-                      borderColor: active ? PURPLE : "#332A4B",
-                      borderWidth: active ? 1.8 : 1,
-                      transform: [{ scale: active ? 1.04 : 1 }],
-                      elevation: active ? 4 : 1,
-                      shadowColor: PURPLE,
-                      shadowOpacity: active ? 0.2 : 0,
-                      shadowRadius: active ? 8 : 0,
-                      shadowOffset: { width: 0, height: 3 },
-                    }}
-                  >
-                    <Text style={{ fontSize: 30 }}>{category.emoji}</Text>
-
-                    {active && (
-                      <View
-                        className="absolute -right-1 -top-1 h-[21px] w-[21px] items-center justify-center rounded-full border-2"
-                        style={{
-                          backgroundColor: PURPLE,
-                          borderColor: BG,
-                        }}
-                      >
-                        <Text className="text-[11px] font-black text-[#100D20]">
-                          ✓
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <Text
-                    numberOfLines={1}
-                    className="mt-3 text-center text-xs font-bold"
-                    style={{
-                      color: active ? "#C4B5FD" : MUTED,
-                      maxWidth: 82,
-                    }}
-                  >
-                    {category.name}
-                  </Text>
-
-                  <View
-                    className="mt-2 h-1 rounded-full"
-                    style={{
-                      width: active ? 22 : 0,
-                      backgroundColor: PURPLE,
-                    }}
-                  />
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+            <Text
+              className="font-extrabold"
+              style={{
+                color: activeView === "top" ? "#D8C8FF" : MUTED,
+              }}
+            >
+              🏆 Top Stories
+            </Text>
+          </Pressable>
         </View>
 
-        {/* Featured story */}
-        {featuredStory && selectedCategory === "All" && (
-          <View className="mt-8 px-5">
-            <View className="mb-4 flex-row items-center justify-between">
-              <Text className="text-xl font-extrabold text-white">
-                Story of the day ⭐
-              </Text>
-              <Text className="text-xs font-bold text-[#FCD34D]">FEATURED</Text>
+        {/* All Stories View */}
+        {activeView === "all" && (
+          <>
+            {/* Categories */}
+            <View className="mt-7">
+              <View className="mb-4 flex-row items-center justify-between px-5">
+                <Text className="text-xl font-extrabold text-white">
+                  Explore worlds 🌈
+                </Text>
+
+                <Text className="text-xs font-bold text-[#C2C9F0]">
+                  PICK ONE
+                </Text>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{
+                  paddingHorizontal: 20,
+                  paddingVertical: 5,
+                  gap: 12,
+                }}
+              >
+                {categories.map((category) => {
+                  const active = selectedCategory === category.name;
+
+                  return (
+                    <Pressable
+                      key={category.name}
+                      onPress={() => setSelectedCategory(category.name)}
+                      className="items-center active:opacity-80"
+                      style={{ width: 82 }}
+                    >
+                      <View
+                        className="h-[68px] w-[68px] items-center justify-center rounded-[22px] border"
+                        style={{
+                          backgroundColor: active ? "#302653" : CARD,
+                          borderColor: active ? PURPLE : BORDER,
+                          borderWidth: active ? 1.8 : 1,
+                        }}
+                      >
+                        <Text style={{ fontSize: 30 }}>{category.emoji}</Text>
+
+                        {active && (
+                          <View
+                            className="absolute -right-1 -top-1 h-[21px] w-[21px] items-center justify-center rounded-full border-2"
+                            style={{
+                              backgroundColor: PURPLE,
+                              borderColor: BG,
+                            }}
+                          >
+                            <Text className="text-[11px] font-black text-[#100D20]">
+                              ✓
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <Text
+                        numberOfLines={1}
+                        className="mt-3 text-center text-xs font-bold"
+                        style={{
+                          color: active ? "#C4B5FD" : MUTED,
+                          maxWidth: 82,
+                        }}
+                      >
+                        {category.name}
+                      </Text>
+
+                      <View
+                        className="mt-2 h-1 rounded-full"
+                        style={{
+                          width: active ? 22 : 0,
+                          backgroundColor: PURPLE,
+                        }}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </View>
 
-            <Pressable
-              onPress={() => openStory(featuredStory.$id)}
-              className="overflow-hidden rounded-[26px] border border-[#42355D] bg-[#211A38] active:opacity-80"
-            >
-              <View className="overflow-hidden">
-                <StoryCover
-                  imageUrl={featuredStory.imageUrl}
-                  emoji={featuredStory.emoji}
-                  color={featuredStory.color}
-                  featured
-                />
+            {/* Featured Story */}
+            {featuredStory && selectedCategory === "All" && (
+              <View className="mt-8 px-5">
+                <View className="mb-4 flex-row items-center justify-between">
+                  <Text className="text-xl font-extrabold text-white">
+                    Story of the day ⭐
+                  </Text>
 
-                <View className="absolute bottom-3 left-3 rounded-full bg-black/60 px-4 py-2">
-                  <Text className="font-bold text-white">
-                    {featuredStory.category}
+                  <Text className="text-xs font-bold text-[#FCD34D]">
+                    FEATURED
                   </Text>
                 </View>
-              </View>
 
-              <View className="p-5">
-                <Text className="text-2xl font-black text-white">
-                  {featuredStory.title}
-                </Text>
-
-                <Text className="mt-2 text-sm text-[#BEB4D6]">
-                  Written by {featuredStory.writerName}
-                </Text>
-
-                <Text
-                  numberOfLines={2}
-                  className="mt-3 text-sm leading-6 text-[#C5BCD9]"
+                <Pressable
+                  onPress={() => openStory(featuredStory.$id)}
+                  className="overflow-hidden rounded-[26px] border border-[#42355D] bg-[#211A38] active:opacity-80"
                 >
-                  {featuredStory.story}
-                </Text>
+                  <View className="overflow-hidden">
+                    <StoryCover
+                      imageUrl={featuredStory.imageUrl}
+                      emoji={featuredStory.emoji}
+                      color={featuredStory.color}
+                      featured
+                    />
 
-                <View className="mt-4 flex-row items-center justify-between">
-                  <Text className="font-extrabold text-[#C4B5FD]">
-                    Start reading →
-                  </Text>
-
-                  <View className="rounded-full border border-[#453660] bg-[#30234F] px-3 py-2">
-                    <Text className="text-xs font-bold text-[#D9CCFF]">
-                      💬 {commentCounts[featuredStory.$id] ?? 0}
-                    </Text>
+                    <View className="absolute bottom-3 left-3 rounded-full bg-black/60 px-4 py-2">
+                      <Text className="font-bold text-white">
+                        {featuredStory.category}
+                      </Text>
+                    </View>
                   </View>
-                </View>
+
+                  <View className="p-5">
+                    <Text className="text-2xl font-black text-white">
+                      {featuredStory.title}
+                    </Text>
+
+                    <Text className="mt-2 text-sm text-[#BEB4D6]">
+                      Written by {featuredStory.writerName}
+                    </Text>
+                    <View className="mt-2 flex-row items-center">
+                      <Text className="text-xs" style={{ color: MUTED }}>
+                        <Clock color={"#AAA3C2"} size={10} />{" "}
+                        {formatPublishedAt(featuredStory.$createdAt)}
+                      </Text>
+                    </View>
+
+                    <Text
+                      numberOfLines={2}
+                      className="mt-3 text-sm leading-6 text-[#C5BCD9]"
+                    >
+                      {featuredStory.story}
+                    </Text>
+
+                    <View className="mt-4 flex-row items-center justify-between">
+                      <Text className="font-extrabold text-[#C4B5FD]">
+                        Start reading →
+                      </Text>
+
+                      <View className="rounded-full border border-[#453660] bg-[#30234F] px-3 py-2">
+                        <Text className="text-xs font-bold text-[#D9CCFF]">
+                          💬 {commentCounts[featuredStory.$id] ?? 0}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </Pressable>
               </View>
-            </Pressable>
+            )}
+          </>
+        )}
+
+        {/* Top Stories Heading */}
+        {activeView === "top" && (
+          <View className="mt-7 px-5">
+            <Text className="text-2xl font-black text-white">
+              Top 10 Stories 🏆
+            </Text>
+
+            <Text className="mt-2 text-sm leading-5" style={{ color: MUTED }}>
+              The most discussed stories in the TinyTales community.
+            </Text>
           </View>
         )}
 
-        {/* Stories list */}
+        {/* Story List */}
         <View className="mt-8 px-5">
-          <View className="mb-4 flex-row items-center justify-between">
-            <Text className="text-xl font-extrabold text-white">
-              {selectedCategory === "All"
-                ? "More adventures 📚"
-                : selectedCategory}
-            </Text>
+          {activeView === "all" && (
+            <View className="mb-4 flex-row items-center justify-between">
+              <Text className="text-xl font-extrabold text-white">
+                {selectedCategory === "All"
+                  ? "More adventures 📚"
+                  : selectedCategory}
+              </Text>
 
-            <Text className="text-sm" style={{ color: MUTED }}>
-              {visibleStories.length +
-                (selectedCategory === "All" && featuredStory ? 1 : 0)}{" "}
-              stories
-            </Text>
-          </View>
+              <Text className="text-sm" style={{ color: MUTED }}>
+                {visibleStories.length} stories
+              </Text>
+            </View>
+          )}
 
           {/* Loading */}
           {loading && (
             <View className="items-center py-10">
               <ActivityIndicator size="large" color={PURPLE} />
+
               <Text className="mt-3" style={{ color: MUTED }}>
                 Finding your stories...
               </Text>
@@ -390,7 +463,7 @@ export default function HomeScreen() {
           )}
 
           {/* Error */}
-          {!!error && (
+          {!!error && !loading && (
             <View className="rounded-2xl border border-[#63364D] bg-[#321D32] p-4">
               <Text className="font-bold text-[#FDA4AF]">
                 Oops! Something went wrong.
@@ -399,93 +472,141 @@ export default function HomeScreen() {
               <Text className="mt-2 leading-5 text-[#FBCFE8]">{error}</Text>
 
               <Pressable
-                onPress={() => router.replace("/")}
+                onPress={handleRefresh}
                 className="mt-4 self-start rounded-xl bg-[#A78BFA] px-4 py-2"
               >
-                <Text className="font-bold text-[#17102B]">Return home</Text>
+                <Text className="font-bold text-[#17102B]">Try again</Text>
               </Pressable>
             </View>
           )}
 
-          {/* Empty state */}
-          {!loading &&
-            !error &&
-            visibleStories.length === 0 &&
-            !(selectedCategory === "All" && featuredStory) && (
-              <View className="items-center rounded-3xl bg-[#1D1833] p-7">
-                <Text className="text-5xl">🔭</Text>
+          {/* Empty State */}
+          {!loading && !error && visibleStories.length === 0 && (
+            <View className="items-center rounded-3xl bg-[#1D1833] p-7">
+              <Text className="text-5xl">
+                {activeView === "top" ? "🏆" : "🔭"}
+              </Text>
 
-                <Text className="mt-3 text-center text-lg font-bold text-white">
-                  No stories in this world yet
-                </Text>
+              <Text className="mt-3 text-center text-lg font-bold text-white">
+                {activeView === "top"
+                  ? "No top stories yet"
+                  : "No stories in this world yet"}
+              </Text>
 
-                <Text className="mt-2 text-center leading-6 text-[#AAA3C2]">
-                  Choose another category to discover more adventures.
-                </Text>
-              </View>
-            )}
-
-          {/* Story cards */}
-          {!loading &&
-            !error &&
-            visibleStories.map((story) => (
-              <Pressable
-                key={story.$id}
-                onPress={() => openStory(story.$id)}
-                className="mb-3 flex-row items-center rounded-[22px] border border-[#332A4B] bg-[#1D1833] p-3 active:opacity-70"
+              <Text
+                className="mt-2 text-center leading-6"
+                style={{ color: MUTED }}
               >
-                <StoryCover
-                  imageUrl={story.imageUrl}
-                  emoji={story.emoji}
-                  color={story.color}
-                />
+                {activeView === "top"
+                  ? "Stories will appear here as readers start commenting."
+                  : "Choose another category to discover more adventures."}
+              </Text>
+            </View>
+          )}
 
-                <View className="ml-3 flex-1 py-1">
-                  <Text className="text-xs font-bold text-[#C4B5FD]">
-                    {story.category}
-                  </Text>
+          {/* Top 10 / All Story Cards */}
+          {!loading &&
+            !error &&
+            visibleStories.map((story, index) => {
+              const isTop = activeView === "top";
 
-                  <Text
-                    numberOfLines={2}
-                    className="mt-1 text-base font-extrabold text-white"
-                  >
-                    {story.title}
-                  </Text>
+              return (
+                <Pressable
+                  key={story.$id}
+                  onPress={() => openStory(story.$id)}
+                  className="mb-3 flex-row items-center rounded-[22px] border p-3 active:opacity-70"
+                  style={{
+                    backgroundColor: CARD,
+                    borderColor: isTop && index === 0 ? "#66502F" : BORDER,
+                  }}
+                >
+                  {/* Top 10 Ranking */}
+                  {isTop && (
+                    <View
+                      className="mr-3 h-9 w-9 items-center justify-center rounded-xl"
+                      style={{
+                        backgroundColor: index === 0 ? "#49351F" : "#30234F",
+                      }}
+                    >
+                      <Text
+                        className="text-sm font-black"
+                        style={{
+                          color: index === 0 ? "#FCD34D" : PURPLE,
+                        }}
+                      >
+                        #{index + 1}
+                      </Text>
+                    </View>
+                  )}
 
-                  <Text
-                    numberOfLines={1}
-                    className="mt-1 text-xs"
-                    style={{ color: MUTED }}
-                  >
-                    By {story.writerName}
-                  </Text>
+                  {/* Cover */}
+                  <StoryCover
+                    imageUrl={story.imageUrl}
+                    emoji={story.emoji}
+                    color={story.color}
+                  />
 
-                  <View className="mt-2 flex-row items-center justify-between">
-                    <Text className="text-xs font-bold text-[#A78BFA]">
-                      Read story →
+                  {/* Story Details */}
+                  <View className="ml-3 flex-1 py-1">
+                    <Text
+                      numberOfLines={1}
+                      className="text-xs font-bold"
+                      style={{ color: PURPLE }}
+                    >
+                      {story.category}
                     </Text>
 
-                    <Text className="text-xs text-[#C4B5D9]">
-                      💬 {commentCounts[story.$id] ?? 0}
+                    <Text
+                      numberOfLines={2}
+                      className="mt-1 text-base font-extrabold text-white"
+                    >
+                      {story.title}
                     </Text>
+
+                    <Text
+                      numberOfLines={1}
+                      className="mt-1 text-xs"
+                      style={{ color: MUTED }}
+                    >
+                      By {story.writerName}
+                    </Text>
+
+                    <View className="mt-1 flex-row items-center">
+                      <Text className="text-[10px]" style={{ color: MUTED }}>
+                        <Clock color={"#AAA3C2"} size={9} />{" "}
+                        {formatPublishedAt(story.$createdAt)}
+                      </Text>
+                    </View>
+
+                    <View className="mt-2 flex-row items-center justify-between">
+                      <Text className="text-xs font-bold text-[#A78BFA]">
+                        Read story →
+                      </Text>
+
+                      <Text className="text-xs text-[#C4B5D9]">
+                        💬 {commentCounts[story.$id] ?? 0}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </Pressable>
-            ))}
+                </Pressable>
+              );
+            })}
         </View>
 
         {/* Footer */}
-        <View className="mx-5 mt-6 items-center rounded-2xl p-5">
-          <Text className="text-3xl">🌙</Text>
+        {!loading && !error && (
+          <View className="mx-5 mt-6 items-center rounded-2xl p-5">
+            <Text className="text-3xl">🌙</Text>
 
-          <Text className="mt-2 font-extrabold text-white">
-            Every story is a new adventure
-          </Text>
+            <Text className="mt-2 font-extrabold text-white">
+              Every story is a new adventure
+            </Text>
 
-          <Text className="mt-1 text-center text-sm" style={{ color: MUTED }}>
-            Keep imagining. Keep exploring. Keep reading.
-          </Text>
-        </View>
+            <Text className="mt-1 text-center text-sm" style={{ color: MUTED }}>
+              Keep imagining. Keep exploring. Keep reading.
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

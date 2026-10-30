@@ -1,14 +1,20 @@
 import { useFocusEffect, useRouter } from "expo-router";
-import { BookOpen, Search, X } from "lucide-react-native";
+import {
+    ArrowUpRight,
+    BookOpen,
+    RefreshCw,
+    Search,
+    X,
+} from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Image,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -38,7 +44,7 @@ function StoryArtwork({
         source={{ uri: url }}
         resizeMode="cover"
         onError={() => setImageFailed(true)}
-        className="h-[104px] w-[100px] rounded-[18px]"
+        className="h-[108px] w-[100px] rounded-2xl"
         accessibilityLabel="Story cover"
       />
     );
@@ -46,14 +52,26 @@ function StoryArtwork({
 
   return (
     <View
-      className="h-[104px] w-[100px] items-center justify-center overflow-hidden rounded-[18px]"
+      className="h-[108px] w-[100px] items-center justify-center overflow-hidden rounded-2xl"
       style={{ backgroundColor: color || "#30234F" }}
     >
-      <View className="absolute -right-4 -top-5 h-16 w-16 rounded-full bg-white/10" />
-      <View className="absolute -bottom-5 -left-3 h-14 w-14 rounded-full bg-black/10" />
-      <Text className="text-[43px]">{emoji || "📖"}</Text>
+      <View className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-white/10" />
+      <View className="absolute -bottom-5 -left-4 h-16 w-16 rounded-full bg-black/10" />
+      <Text className="text-[42px]">{emoji || "📖"}</Text>
     </View>
   );
+}
+
+function formatPublishedAt(date: string) {
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  return parsed.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export default function SearchScreen() {
@@ -81,8 +99,33 @@ export default function SearchScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void loadStories();
-    }, [loadStories]),
+      let active = true;
+
+      const fetchStories = async () => {
+        try {
+          setLoading(true);
+          setError("");
+
+          const data = await getStories();
+
+          if (active) setStories(data);
+        } catch (err) {
+          console.error("Search loading error:", err);
+
+          if (active) {
+            setError("Couldn't load the library. Please try again.");
+          }
+        } finally {
+          if (active) setLoading(false);
+        }
+      };
+
+      void fetchStories();
+
+      return () => {
+        active = false;
+      };
+    }, []),
   );
 
   const filtered = useMemo(() => {
@@ -106,46 +149,51 @@ export default function SearchScreen() {
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: BG }}>
       <View className="flex-1">
-        {/* Header */}
-        <View className="px-5 pt-5">
+        {/* FIXED HEADER */}
+        <View className="px-5 pb-4 pt-4" style={{ backgroundColor: BG }}>
           <View className="mb-5 flex-row items-center justify-between">
             <View className="flex-1">
-              <Text className="text-[32px] font-black tracking-tight text-white">
+              <Text className="text-[10px] font-extrabold tracking-[2px] text-[#A78BFA]">
+                TINYTALES LIBRARY
+              </Text>
+
+              <Text className="mt-2 text-[30px] font-black tracking-tight text-white">
                 Explore stories
               </Text>
 
-              <Text className="mt-2 text-sm leading-6" style={{ color: MUTED }}>
-                Little stories, big adventures.
+              <Text className="mt-1 text-sm" style={{ color: MUTED }}>
+                Find your next adventure.
               </Text>
             </View>
 
-            <View className="ml-3 h-[58px] w-[58px] items-center justify-center rounded-[20px] border border-[#403454] bg-[#1D1833]">
-              <BookOpen size={27} color={PURPLE} />
+            <View
+              className="ml-3 h-[54px] w-[54px] items-center justify-center rounded-[19px] border"
+              style={{ backgroundColor: CARD, borderColor: BORDER }}
+            >
+              <BookOpen size={25} color={PURPLE} />
             </View>
           </View>
 
-          {/* Search input */}
+          {/* FIXED SEARCH BAR */}
           <View
-            className="flex-row items-center rounded-[20px] border px-4"
+            className="flex-row items-center rounded-2xl border px-4"
             style={{
-              minHeight: 62,
+              minHeight: 58,
               backgroundColor: CARD,
-              borderColor: query ? PURPLE : "#403454",
+              borderColor: query ? PURPLE : BORDER,
             }}
           >
-            <View className="mr-3 h-10 w-10 items-center justify-center rounded-[14px] bg-[#30234F]">
-              <Search size={20} color={PURPLE} />
-            </View>
+            <Search size={20} color={PURPLE} />
 
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Find a magical story..."
+              placeholder="Search stories, categories..."
               placeholderTextColor="#8E85A7"
               autoCapitalize="none"
               returnKeyType="search"
-              accessibilityLabel="Search stories, categories, and writers"
-              className="flex-1 py-4 text-[15px] text-white"
+              accessibilityLabel="Search stories"
+              className="ml-3 flex-1 py-4 text-sm text-white"
             />
 
             {query.length > 0 && (
@@ -155,28 +203,30 @@ export default function SearchScreen() {
                 hitSlop={10}
                 className="ml-2 h-8 w-8 items-center justify-center rounded-full bg-[#30234F]"
               >
-                <X size={17} color={MUTED} />
+                <X size={16} color={MUTED} />
               </Pressable>
             )}
           </View>
 
-          {/* Results heading */}
+          {/* RESULTS HEADER */}
           {!loading && !error && (
-            <View className="mb-4 mt-7 flex-row items-center justify-between">
+            <View className="mt-6 flex-row items-center justify-between">
               <View>
-                <Text className="text-xl font-black text-white">
-                  {query.trim() ? "Search results" : "Story library"}
+                <Text className="text-lg font-extrabold text-white">
+                  {query.trim() ? "Search results" : "All stories"}
                 </Text>
-
                 <Text className="mt-1 text-xs" style={{ color: MUTED }}>
                   {query.trim()
-                    ? "Your next adventure awaits"
-                    : "Pick a story and start exploring"}
+                    ? "Stories matching your search"
+                    : "Explore the collection"}
                 </Text>
               </View>
 
-              <View className="rounded-full border border-[#403454] bg-[#1D1833] px-3 py-2">
-                <Text className="text-xs font-extrabold text-[#C4B5FD]">
+              <View
+                className="rounded-full border px-3 py-2"
+                style={{ backgroundColor: CARD, borderColor: BORDER }}
+              >
+                <Text className="text-[10px] font-extrabold text-[#C4B5FD]">
                   {filtered.length}{" "}
                   {filtered.length === 1 ? "STORY" : "STORIES"}
                 </Text>
@@ -185,36 +235,43 @@ export default function SearchScreen() {
           )}
         </View>
 
-        {/* Loading */}
+        {/* SCROLLABLE CONTENT ONLY */}
         {loading ? (
           <View className="flex-1 items-center justify-center px-8">
-            <View className="h-[76px] w-[76px] items-center justify-center rounded-[26px] border border-[#403454] bg-[#1D1833]">
+            <View
+              className="h-16 w-16 items-center justify-center rounded-2xl border"
+              style={{ backgroundColor: CARD, borderColor: BORDER }}
+            >
               <ActivityIndicator color={PURPLE} size="large" />
             </View>
 
-            <Text className="mt-5 text-base font-bold text-white">
-              Opening the storybook...
+            <Text className="mt-5 font-bold text-white">
+              Loading stories...
             </Text>
-
-            <Text className="mt-2 text-center text-sm" style={{ color: MUTED }}>
-              Getting your next adventure ready.
+            <Text className="mt-2 text-sm" style={{ color: MUTED }}>
+              Preparing your story collection.
             </Text>
           </View>
         ) : error ? (
-          <View className="mx-5 mt-6 rounded-[24px] border border-[#633044] bg-[#321D32] p-6">
+          <View
+            className="mx-5 mt-5 rounded-3xl border p-6"
+            style={{ backgroundColor: CARD, borderColor: BORDER }}
+          >
             <Text className="text-3xl">📚</Text>
-
-            <Text className="mt-3 text-lg font-extrabold text-white">
+            <Text className="mt-4 text-lg font-extrabold text-white">
               Something went wrong
             </Text>
-
-            <Text className="mt-2 leading-6 text-[#FDA4AF]">{error}</Text>
+            <Text className="mt-2 text-sm leading-6" style={{ color: MUTED }}>
+              {error}
+            </Text>
 
             <Pressable
               onPress={() => void loadStories()}
-              className="mt-5 self-start rounded-[14px] bg-[#1D1833] px-5 py-3 active:opacity-70"
+              className="mt-5 h-12 flex-row items-center justify-center gap-2 rounded-xl"
+              style={{ backgroundColor: "#30234F" }}
             >
-              <Text className="font-bold text-white">Try again →</Text>
+              <RefreshCw size={16} color={PURPLE} />
+              <Text className="font-bold text-white">Try again</Text>
             </Pressable>
           </View>
         ) : (
@@ -224,6 +281,7 @@ export default function SearchScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{
               paddingHorizontal: 20,
+              paddingTop: 4,
               paddingBottom: 35,
             }}
           >
@@ -233,20 +291,24 @@ export default function SearchScreen() {
                 onPress={() => openStory(story.$id)}
                 accessibilityRole="button"
                 accessibilityLabel={`Read ${story.title}`}
-                className="mb-4 overflow-hidden rounded-[24px] border bg-[#1D1833] active:opacity-75"
-                style={{ borderColor: BORDER }}
+                className="mb-3 overflow-hidden rounded-[22px] border active:opacity-75"
+                style={{
+                  backgroundColor: CARD,
+                  borderColor: BORDER,
+                }}
               >
                 <View className="flex-row items-center p-3">
-                  {/* Story artwork: image or emoji fallback */}
                   <StoryArtwork
                     imageUrl={story.imageUrl}
                     emoji={story.emoji}
                     color={story.color}
                   />
 
-                  {/* Story information */}
                   <View className="ml-4 flex-1 justify-center py-1">
-                    <View className="self-start rounded-full bg-[#30234F] px-2.5 py-1">
+                    <View
+                      className="self-start rounded-full px-2.5 py-1"
+                      style={{ backgroundColor: "#30234F" }}
+                    >
                       <Text className="text-[10px] font-extrabold tracking-wide text-[#C4B5FD]">
                         {story.category || "STORY"}
                       </Text>
@@ -254,7 +316,7 @@ export default function SearchScreen() {
 
                     <Text
                       numberOfLines={2}
-                      className="mt-2 text-[16px] font-extrabold leading-[22px] text-white"
+                      className="mt-2 text-[15px] font-extrabold leading-[21px] text-white"
                     >
                       {story.title || "Untitled Story"}
                     </Text>
@@ -267,28 +329,43 @@ export default function SearchScreen() {
                       By {story.writerName || "TinyTales Team"}
                     </Text>
 
-                    <View className="mt-3 flex-row items-center">
-                      <Text className="text-xs font-extrabold text-[#A78BFA]">
-                        Read story
+                    <View className="mt-3 flex-row items-center justify-between">
+                      <Text
+                        className="text-[10px]"
+                        style={{ color: "#8E85A7" }}
+                      >
+                        {formatPublishedAt(story.$createdAt)}
                       </Text>
 
-                      <Text className="ml-1 text-sm font-bold text-[#A78BFA]">
-                        →
-                      </Text>
+                      <View className="flex-row items-center">
+                        <Text className="text-xs font-bold text-[#A78BFA]">
+                          Read
+                        </Text>
+                        <ArrowUpRight
+                          size={15}
+                          color={PURPLE}
+                          style={{ marginLeft: 3 }}
+                        />
+                      </View>
                     </View>
                   </View>
                 </View>
               </Pressable>
             ))}
 
-            {/* Empty state */}
             {filtered.length === 0 && (
-              <View className="mt-5 items-center rounded-[28px] border border-[#332A4B] bg-[#1D1833] px-6 py-10">
-                <View className="h-[88px] w-[88px] items-center justify-center rounded-[28px] bg-[#30234F]">
-                  <Search size={36} color={PURPLE} />
+              <View
+                className="mt-3 items-center rounded-[26px] border px-6 py-10"
+                style={{ backgroundColor: CARD, borderColor: BORDER }}
+              >
+                <View
+                  className="h-[76px] w-[76px] items-center justify-center rounded-3xl"
+                  style={{ backgroundColor: "#30234F" }}
+                >
+                  <Search size={32} color={PURPLE} />
                 </View>
 
-                <Text className="mt-5 text-xl font-black text-white">
+                <Text className="mt-5 text-xl font-extrabold text-white">
                   No stories found
                 </Text>
 
@@ -297,14 +374,15 @@ export default function SearchScreen() {
                   style={{ color: MUTED }}
                 >
                   {query.trim()
-                    ? "We couldn't find a match. Try a different title, category, or writer."
+                    ? "Try another title, category, or writer."
                     : "Your story library is waiting for its first adventure."}
                 </Text>
 
                 {query.length > 0 && (
                   <Pressable
                     onPress={() => setQuery("")}
-                    className="mt-5 rounded-[15px] bg-[#A78BFA] px-6 py-3.5 active:opacity-75"
+                    className="mt-5 rounded-xl px-6 py-3"
+                    style={{ backgroundColor: PURPLE }}
                   >
                     <Text className="font-extrabold text-[#17102B]">
                       Show all stories
